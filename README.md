@@ -1,2 +1,3 @@
-# oj
-An online judge platform for software engineering course
+# Online Judge
+
+This is an online judge system for software engineering course
