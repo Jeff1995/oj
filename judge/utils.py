@@ -3,6 +3,7 @@ This script contains classes and functions that implement the judging process
 """
 
 
+import os
 import os.path
 import requests
 import pymysql.cursors
@@ -63,7 +64,7 @@ class Submission:
         self.result['compile_success'] = self.compiler.compile(self.src, self.bin)
 
     def run(self):  # Run the user program and update self.result
-        result = self.sandbox.run(self.bin, self.stdin, self.usrout)
+        result = self.sandbox.run(self.bin, self.stdin, self.usrout, self.timeLim, self.memLim)
         self.result['run_success'] = result['success']
         self.result['time_exceeded'] = result['time_exceeded']
         self.result['mem_exceeded'] = result['mem_exceeded']
@@ -86,9 +87,15 @@ class Sandbox:
     def __init__(self):
         pass
 
-    def run(self, bin, stdin, usrout):
-        # Return {success, time_exceeded, mem_exceeded, time_used, mem_used}
-        pass
+    def run(self, bin, stdin, usrout, time_limit, mem_limit):
+        cmd = "./judge.o . %s %s /dev/null %d %d %s"%(stdin, usrout, time_limit, mem_limit, bin)
+        result, time_used, mem_used = [int(s) for s in os.popen(cmd).read().split()]
+
+        success = result == 0
+        time_exceeded = result == 2
+        mem_exceeded = result == 3
+
+        return success, time_exceeded, mem_exceeded, time_used, mem_used
 
     def close(self):
         pass
