@@ -7,26 +7,39 @@ This is the backend module called by manager node
 
 
 import sys
-from utils import Config
-from utils import Logger
-from utils import Submission
-from utils import Communicator
+import logging
+from utils import logger, Config, Submission, Communicator
+import ipdb
 
 
-configFile = ''
-config = Config(configFile)
-logger = Logger(config.logFile)
-managerAddr = config.managerAddr
-submissionId = sys.argv[1]
+if __name__ == '__main__':
 
-comm = Communicator(managerAddr)
-submission = Submission(submissionId, comm)
+    # Read configuration file
+    configFile = 'conf/oj.conf'
+    config = Config(configFile)
 
-submission.prepare() and submission.compile() and \
-submission.run() and submission.compare()
+    # Start logging to file
+    handler = logging.FileHandler(config.logFile)
+    handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter("[%(asctime)s] %(name)s - %(levelname)s: %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
-submission.report()
+    # Get parameters
+    managerAddr = config.managerAddr
+    submissionId = sys.argv[1]
 
-submission.close()
-comm.close()
-logger.close()
+    # Setup submission
+    comm = Communicator(managerAddr)
+    submission = Submission(submissionId, comm)
+
+    # Test submission
+    submission.prepare() and submission.compile() and \
+    submission.run() and submission.compare()
+
+    # Report result
+    submission.report()
+
+    # Cleaning up
+    submission.close()
+    comm.close()

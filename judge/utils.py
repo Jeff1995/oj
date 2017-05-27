@@ -3,6 +3,11 @@ This script contains classes and functions that implement the judging process
 """
 
 
+import logging
+logger = logging.getLogger('judge.py')
+logger.setLevel(logging.DEBUG)
+
+
 class Submission:
 
     """
@@ -10,7 +15,6 @@ class Submission:
     """
 
     def __init__(self, submissionId, comm):
-        global logger
         self.comm = comm
         self.compiler = Compiler()
         self.sandbox = Sandbox()
@@ -19,6 +23,7 @@ class Submission:
         info = self.comm.fetchInfo(submissionId)
 
         # Use info to fill in the following attributes
+        self.id = submissionId
         self.cpuLim = None  # TODO: CPU time limit of the corresponding problem
         self.memLim = None  # TODO: Memory limit of the corresponding problem
         self.stdin = None  # TODO: Standard input file path
@@ -36,6 +41,7 @@ class Submission:
             "time_used": None,
             "mem_used": None
         }
+        logger.info('Submission[' + str(submissionId) + '] created.')
 
     def prepare(self):  # Fetch src file, fetch IO file if not already exist
         pass
@@ -63,7 +69,6 @@ class Sandbox:
     """
 
     def __init__(self):
-        global logger
         pass
 
     def run(self, submission):
@@ -79,21 +84,42 @@ class Communicator:
     This class does all communicate with the manager node
     """
 
-    def __init__(self, managerAddr):
-        global logger
-        pass
+    import os.path
+    import requests
+    import pymysql.cursors
 
-    def fetchInfo(self, submissionId):  # Fetch info from database
-        pass
+    def __init__(self, managerAddr, mysqlPort, mysqlUsr, mysqlPasswd, mysqlDb):
+        self.managerAddr = managerAddr
+        self.mysqlConn = pymysql.connect(host=managerAddr,
+                                         port=mysqlPort,
+                                         user=mysqlUsr,
+                                         password=mysqlPasswd,
+                                         db=mysqlDb,
+                                         charset='utf8',
+                                         cursorclass=pymysql.cursors.DictCursor)
+
+    def fetchInfo(self, submission):  # Fetch info from database
+        try:
+            with connection.cursor() as cursor:
+                sql = "SELECT `Problem`.`path` AS `PPATH`, `Submit`.`path` AS `SPATH`, "
+                      "`timeLimit`, `memLimit` FROM `Submit`, `Problem` WHERE "
+                      "`submitId`=%s AND `Submit`.`problemId`=`Problem`.`problemId`"
+                cursor.execute(sql, (str(submission.id,)))
+                result = cursor.fetchone()
+                # TODO
+        except DatabaseError:
+            logger.error("Database connection error.")
+
 
     def fetchFile(self, path):  # Fetch file from manager node
-        pass
+        if not os.path.isfile(path):
+            requests.get()
 
     def report(self, content):
         pass
 
     def close(self):
-        pass
+        self.mysqlConn.close()
 
 
 class Compiler:
@@ -103,7 +129,6 @@ class Compiler:
     """
 
     def __init__(self):
-        global logger
         pass
 
     def compile(self, submission):
@@ -117,26 +142,9 @@ class Comparer:
     """
 
     def __init__(self):
-        global logger
         pass
 
     def compare(self, submission):
-        pass
-
-
-class Logger:
-
-    """
-    This class deals with logging related issue
-    """
-
-    def __init__(self, logFile):
-        pass
-
-    def log(event):
-        pass
-
-    def close(self):
         pass
 
 
@@ -147,7 +155,9 @@ class Config:
     """
 
     def __init__(self, configFile):
-        self.logFile = None
-        self.managerAddr = None
-        pass
+        from ConfigParser import ConfigParser
+        parser = ConfigParser()
+        parser.read(configFile)
 
+        self.logFile = parser.get('log', 'logFile')
+        self.managerAddr = parser.get('network', 'managerAddr')
