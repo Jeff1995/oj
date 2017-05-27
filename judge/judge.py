@@ -26,12 +26,14 @@ if __name__ == '__main__':
     logger.addHandler(handler)
 
     # Get parameters
-    managerAddr = config.managerAddr
     submissionId = sys.argv[1]
 
     # Setup submission
-    comm = Communicator(managerAddr)
-    submission = Submission(submissionId, comm)
+    comm = Communicator(config.managerAddr)
+    comiler = Compiler(config.compiler, config.compileArgs)
+    sandbox = Sandbox()  # TODO
+    comparer = Comparer(config.compareArgs)
+    submission = Submission(submissionId, comm, compiler, sandbox, comparer)
 
     # Test submission
     submission.prepare() and submission.compile() and \
