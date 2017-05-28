@@ -18,7 +18,16 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <assert.h>
-#include "okcalls.h"
+
+#ifdef __i386
+int LANG_CV[256] = { 85, 8,140, SYS_time, SYS_read, SYS_uname, SYS_write, SYS_open,
+	SYS_close, SYS_execve, SYS_access, SYS_brk, SYS_munmap, SYS_mprotect,
+	SYS_mmap2, SYS_fstat64, SYS_set_thread_area, 252, 0 };
+#else
+   int LANG_CV[256] = {0,1,2,4,5,9,11,12,21,59,63,89,158,231,240, 8, SYS_time, SYS_read, SYS_uname, SYS_write, SYS_open,
+		SYS_close, SYS_execve, SYS_access, SYS_brk, SYS_munmap, SYS_mprotect,
+		SYS_mmap, SYS_fstat, SYS_set_thread_area, 252, SYS_arch_prctl, 231, 0 };
+#endif
 
 #ifdef __i386
 #define REG_SYSCALL orig_eax
@@ -31,8 +40,6 @@
 #define REG_ARG0 rdi
 #define REG_ARG1 rsi
 #endif /* __i386 */
-
-#define JUDGE_USER_ID 3333 /* user id */
 
 #define STD_MB 1048576 /* 1MB */
 #define STD_F_LIM (STD_MB<<5) /* file size limit 32 MB */
@@ -47,6 +54,9 @@ const char* output_file;
 const char* error_file;
 const char* work_dir;
 const char* program_file;
+const char* input_dir;
+
+int userid;
 
 #define JUDGE_AC 0
 #define JUDGE_RE 1
@@ -56,6 +66,19 @@ const char* program_file;
 #define JUDGE_RF 5
 
 #define BUFFER_SIZE 5120
+
+int execute_cmd(const char * fmt, ...) {
+	char cmd[BUFFER_SIZE];
+
+	int ret = 0;
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsprintf(cmd, fmt, ap);
+	ret = system(cmd);
+	va_end(ap);
+	return ret;
+}
 
 int get_proc_status(int pid, const char * mark) {
     FILE * pf;
@@ -99,9 +122,21 @@ void run_solution()
 
     chdir(work_dir);
 
-    //while (setgid(JUDGE_USER_ID) != 0) sleep(1);
-    //while (setuid(JUDGE_USER_ID) != 0) sleep(1);
-    //while (setresuid(JUDGE_USER_ID, JUDGE_USER_ID, JUDGE_USER_ID) != 0) sleep(1);
+    execute_cmd("chmod 775 %s", work_dir);
+
+    execute_cmd("mkdir -p bin usr lib lib64 etc/alternatives proc tmp dev input");
+    execute_cmd("mount -o bind -o ro /bin bin");
+    execute_cmd("mount -o bind -o ro /usr usr");
+    execute_cmd("mount -o bind -o ro /lib lib");
+    execute_cmd("mount -o bind -o ro %s input", input_dir);
+#ifndef __i386
+    execute_cmd("mount -o bind -o ro /lib64 lib64");
+#endif
+    execute_cmd("mount -o bind -o ro /etc/alternatives etc/alternatives");
+    execute_cmd("mount -o bind -o ro /proc proc");
+    chroot(work_dir);
+
+    execute_cmd("chmod 775 %s", program_file);
 
     struct rlimit LIM;
 
@@ -115,7 +150,7 @@ void run_solution()
     // file limit
     LIM.rlim_max = STD_F_LIM + STD_MB;
     LIM.rlim_cur = STD_F_LIM;
-    setrlimit(RLIMIT_FSIZE, &LIM);    
+    setrlimit(RLIMIT_FSIZE, &LIM);
 
     // proc limit
     LIM.rlim_cur = LIM.rlim_max = 1;
@@ -130,7 +165,11 @@ void run_solution()
     LIM.rlim_max = STD_MB * mem_limit * 2;
     setrlimit(RLIMIT_AS, &LIM);
 
-    // open the files
+    while (setgid(userid) != 0) sleep(1);
+    while (setuid(userid) != 0) sleep(1);
+    while (setresuid(userid, userid, userid) != 0) sleep(1);
+
+    //open the files
     freopen(standard_input_file, "r", stdin);
     freopen(output_file, "w", stdout);
     freopen(error_file, "w", stderr);
@@ -260,24 +299,33 @@ void watch_solution(pid_t pid_child)
     usedtime += (ruse.ru_stime.tv_sec * 1000 + ruse.ru_stime.tv_usec / 1000);
 
     printf("%d %d %d\n", result, usedtime, topmemory);
+
+    chdir(work_dir);
+    execute_cmd("umount bin usr lib input lib64 etc/alternatives proc 2>/dev/null >/dev/null");
+    execute_cmd("umount bin usr lib input lib64 etc/alternatives proc 2>/dev/null >/dev/null");
+    execute_cmd("rmdir bin usr lib input lib64 etc/alternatives proc etc tmp dev 2>/dev/null >/dev/null");
 }
 
 int main(int argc, char ** argv)
 {
     // judge work_dir input output error mem_limit time_limit
-    if(argc != 8)
+    if(argc != 10)
     {
-        printf("usage\n\t%s work_dir input output error mem_limit time_limit program_file\n", argv[0]);
+        printf("usage\n\t%s work_dir program_file output_file error_file input_dir standard_input_file time_limit mem_limit userid\n", argv[0]);
         return -1;
     }
 
     work_dir = argv[1];
-    standard_input_file = argv[2];
+    program_file = argv[2];
     output_file = argv[3];
     error_file = argv[4];
-    mem_limit = atoi(argv[5]);
-    time_limit = atoi(argv[6]);
-    program_file = argv[7];
+
+    input_dir = argv[5];
+    standard_input_file = argv[6];
+    time_limit = atoi(argv[7]);
+    mem_limit = atoi(argv[8]);
+
+    userid = atoi(argv[9]);
 
     pid_t child;
     child = fork();

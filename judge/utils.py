@@ -9,6 +9,8 @@ import requests
 import pymysql.cursors
 import logging
 import json
+import socket
+
 from subprocess import call
 from ConfigParser import ConfigParser
 
@@ -42,6 +44,13 @@ class Submission:
         self.bin = 'submissions/' + str(self.submissionId) + '/submit.o'
         self.usrout = 'submissions/' + str(self.submissionId) + '/usrout'
 
+        self.bin_relation = '/submit.o'
+        self.input_relation = '/input/stdin'
+        self.usrout_relation = '/usrout'
+        self.errout_relation = '/error'
+        self.input_dir = os.path.join(os.getcwd(), 'problems', str(self.problemId))
+        self.work_dir = os.path.join(os.getcwd(), 'submissions', str(self.submissionId))
+
         self.result = {
             "compile_success": None,
             "run_success": None,
@@ -64,7 +73,8 @@ class Submission:
         self.result['compile_success'] = self.compiler.compile(self.src, self.bin)
 
     def run(self):  # Run the user program and update self.result
-        result = self.sandbox.run(self.bin, self.stdin, self.usrout, self.timeLim, self.memLim)
+        result = self.sandbox.run(self.work_dir, self.bin_relation, self.usrout_relation,
+            self.errout_relation, self.input_dir, self.input_relation, self.timeLim, self.memLim)
         self.result['run_success'] = result['success']
         self.result['time_exceeded'] = result['time_exceeded']
         self.result['mem_exceeded'] = result['mem_exceeded']
@@ -87,14 +97,11 @@ class Sandbox:
     def __init__(self):
         pass
 
-    def run(self, bin, stdin, usrout, time_limit, mem_limit):
-        cmd = "./judge.o . %s %s /dev/null %d %d %s"%(stdin, usrout, time_limit, mem_limit, bin)
-        result, time_used, mem_used = [int(s) for s in os.popen(cmd).read().split()]
-
-        success = result == 0
-        time_exceeded = result == 2
-        mem_exceeded = result == 3
-
+    def run(self, work_dir, bin, usrout, errout, input_dir, stdin, time_limit, mem_limit):
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        client.connect("/tmp/judge_root.sock")
+        client.send(json.dumps([work_dir, bin, usrout, errout, input_dir, stdin, time_limit, mem_limit]).encode())
+        success, time_exceeded, mem_exceeded, time_used, mem_used = json.loads(client.recv(1024).decode())
         return success, time_exceeded, mem_exceeded, time_used, mem_used
 
     def close(self):
