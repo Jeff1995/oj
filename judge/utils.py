@@ -6,6 +6,7 @@ This script contains classes and functions that implement the judging process
 import os
 import os.path
 import requests
+import pymysql
 import pymysql.cursors
 import logging
 import json
@@ -15,8 +16,17 @@ from subprocess import call
 from ConfigParser import ConfigParser
 
 
-logger = logging.getLogger('judge.py')
-logger.setLevel(logging.DEBUG)
+logFile = 'log/judge.log'
+
+def constructLogger(name, file):
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
+    handler = logging.FileHandler(file)
+    handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter("[%(asctime)s] %(name)s - %(levelname)s: %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    return logger
 
 
 class Submission:
@@ -26,30 +36,39 @@ class Submission:
     """
 
     def __init__(self, submissionId, comm, compiler, sandbox, comparer):
+        self.constructed = False
+
         self.comm = comm
         self.compiler = compiler
         self.sandbox = sandbox
         self.comparer = comparer
+        self.logger = constructLogger('Submission', logFile)
 
-        info = self.comm.fetchInfo(submissionId)
+        self.submissionId = int(submissionId)
+
+        info = self.comm.fetchInfo(self)
+        if info is None:
+            msg = "Failed to fetch submission info!"
+            self.logger.error(msg)
+            self.comm.report(msg)
+            return
 
         # Use info to fill in the following attributes
-        self.submissionId = submissionId
         self.problemId = info['problemId']
         self.timeLim = info['timeLimit']
         self.memLim = info['memLimit']
-        self.stdin = 'problems/' + str(self.problemId) + '/stdin'
-        self.stdout = 'problems/' + str(self.problemId) + '/stdout'
-        self.src = 'submissions/' + str(self.submissionId) + '/submit.c'
-        self.bin = 'submissions/' + str(self.submissionId) + '/submit.o'
-        self.usrout = 'submissions/' + str(self.submissionId) + '/usrout'
+        self.stdin = 'dat/problems/%d/stdin' % self.problemId
+        self.stdout = 'dat/problems/%d/stdout' % self.problemId
+        self.src = 'dat/submissions/%d/src.cpp' % self.submissionId
+        self.bin = 'dat/submissions/%d/src.o' % self.submissionId
+        self.usrout = 'dat/submissions/%d/usrout' % self.submissionId
 
-        self.bin_relation = '/submit.o'
+        self.bin_relation = '/src.o'
         self.input_relation = '/input/stdin'
         self.usrout_relation = '/usrout'
         self.errout_relation = '/error'
-        self.input_dir = os.path.join(os.getcwd(), 'problems', str(self.problemId))
-        self.work_dir = os.path.join(os.getcwd(), 'submissions', str(self.submissionId))
+        self.input_dir = os.path.join(os.getcwd(), 'dat/problems', str(self.problemId))
+        self.work_dir = os.path.join(os.getcwd(), 'dat/submissions', str(self.submissionId))
 
         self.result = {
             "compile_success": None,
@@ -60,32 +79,50 @@ class Submission:
             "time_used": None,
             "mem_used": None
         }
-        logger.info('Submission[' + str(submissionId) + '] created.')
+
+        self.constructed = True
+        self.logger.info('Submission[%d] created successfully.' % self.submissionId)
 
     def prepare(self):  # Fetch src file and fetch IO file if not already exist
+        if not self.constructed:
+            return False
         if not os.path.isfile(self.stdin):
-            self.comm.fetchFile(self.stdin)
+            stdinFlag = self.comm.fetchFile(self.stdin)
+        else:
+            stdinFlag = True
         if not os.path.isfile(self.stdout):
-            self.comm.fetchFile(self.stdout)
-        self.comm.fetchFile(self.src)
+            stdoutFlag = self.comm.fetchFile(self.stdout)
+        else:
+            stdoutFlag = True
+        srcFlag = self.comm.fetchFile(self.src)
+        return stdinFlag and stdoutFlag and srcFlag
 
     def compile(self):  # Compile and update self.result
+        if not self.constructed:
+            return False
         self.result['compile_success'] = self.compiler.compile(self.src, self.bin)
+        return self.result['compile_success']
 
     def run(self):  # Run the user program and update self.result
+        if not self.constructed:
+            return False
         result = self.sandbox.run(self.work_dir, self.bin_relation, self.usrout_relation,
             self.errout_relation, self.input_dir, self.input_relation, self.timeLim, self.memLim)
-        self.result['run_success'] = result['success']
-        self.result['time_exceeded'] = result['time_exceeded']
-        self.result['mem_exceeded'] = result['mem_exceeded']
-        self.result['time_used'] = result['time_used']
-        self.result['mem_used'] = result['mem_used']
+        self.result['run_success'], self.result['time_exceeded'],
+        self.result['mem_exceeded'], self.result['time_used'],
+        self.result['mem_used'] = result
+        return self.result['run_success']
 
     def compare(self):  # Compare and update self.result
+        if not self.constructed:
+            return False
         self.result['compare_success'] = self.comparer.compare(self.stdout, self.usrout)
+        return self.result['compare_success']
 
     def report(self):  # Construct content with self.result and send back
-        self.comm.report(json.dump(self.result))
+        if not self.constructed:
+            return False
+        return self.comm.report(json.dumps(self.result))
 
 
 class Sandbox:
@@ -95,7 +132,7 @@ class Sandbox:
     """
 
     def __init__(self):
-        pass
+        self.logger = constructLogger('Sandbox', logFile)
 
     def run(self, work_dir, bin, usrout, errout, input_dir, stdin, time_limit, mem_limit):
         client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -115,9 +152,10 @@ class Communicator:
     """
 
     def __init__(self, managerAddr, mysqlPort, mysqlUsr, mysqlPasswd, mysqlDb):
+        self.logger = constructLogger('Communicator', logFile)
         self.managerAddr = managerAddr
         self.mysqlConn = pymysql.connect(host=managerAddr,
-                                         port=mysqlPort,
+                                         port=int(mysqlPort),
                                          user=mysqlUsr,
                                          password=mysqlPasswd,
                                          db=mysqlDb,
@@ -126,25 +164,41 @@ class Communicator:
 
     def fetchInfo(self, submission):  # Fetch info from database
         try:
-            with connection.cursor() as cursor:
+            with self.mysqlConn.cursor() as cursor:
                 sql = "SELECT `Problem`.`problemId` AS `problemId`, `timeLimit`, `memLimit` " + \
                       "FROM `Submit`, `Problem` WHERE " + \
                       "`submitId`=%s AND `Submit`.`problemId`=`Problem`.`problemId`"
                 cursor.execute(sql, (str(submission.submissionId, )))
                 result = cursor.fetchone()
                 return result
-        except DatabaseError:  # TODO: not sure if the error type is correct
-            logger.error("Database connection error.")
-
+        except pymysql.DatabaseError:  # TODO: not sure if the error type is correct
+            self.logger.error("Database connection error!")
 
     def fetchFile(self, path):  # Fetch file from manager node
-        response = requests.get("http://" + self.managerAddr + '/' + path)
-        with open(path, 'w') as fetchedFile:
-            fetchedFile.write(response.text)
+        try:
+            url = "http://%s/OJ/%s" % (self.managerAddr, path)
+            response = requests.get(url)
+            path_dir = '/'.join(path.split('/')[:-1])
+            if not os.path.exists(path_dir):
+                os.makedirs(path_dir)
+            with open(path, 'w') as fetchedFile:
+                fetchedFile.write(response.text)
+            return True
+        except requests.exceptions.RequestException:
+            self.logger.error("Failed to fetch file: %s" % path)
+            return False
+        except IOError:
+            self.logger.error("Failed to save file: %s" % path)
+            return False
 
     def report(self, content):
-        response = requests.post("http://" + self.managerAddr + '/report.php',
-                                 data = content)  # TODO: error handling
+        try:
+            response = requests.post("http://%s/report.php" % self.managerAddr,
+                                     data = content)  # TODO: error handling
+            return True
+        except requests.exceptions.RequestException:
+            self.logger.error("Failed to send report!")
+            return False
 
     def close(self):
         self.mysqlConn.close()
@@ -157,10 +211,12 @@ class Compiler:
     """
 
     def __init__(self, compiler, args):
+        self.logger = constructLogger('Compiler', logFile)
         self.compiler = compiler
         self.args = args
 
     def compile(self, src, bin):  # Return bool
+	cmdList = [self.compiler, self.args, '-o', bin, src]
         retcode = call([self.compiler, self.args, '-o', bin, src])
         return retcode == 0
 
@@ -172,6 +228,7 @@ class Comparer:
     """
 
     def __init__(self, args):
+        self.logger = constructLogger('Comparer', logFile)
         self.args = args
 
     def compare(self, stdout, usrout):  # Return bool

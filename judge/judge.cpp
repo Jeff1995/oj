@@ -199,14 +199,14 @@ void watch_solution(pid_t pid_child)
     int status;
     struct user_regs_struct reg; /* register */
     struct rusage ruse;
-    
+
     if(topmemory==0)
     {
         topmemory = get_proc_status(pid_child, "VmRSS:");
         if(-1 != topmemory)
             topmemory = topmemory << 10;
     }
-        
+
 
     while (1) {
         wait4(pid_child, &status, 0, &ruse);

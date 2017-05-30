@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 log/*
+dat/problems/*
+dat/submissions/*
+dat/problems/*
