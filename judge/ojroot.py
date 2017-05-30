@@ -7,7 +7,7 @@ import json
 
 def main():
     cf = configparser.ConfigParser()
-    cf.read("oj.conf")
+    cf.read("conf/oj.conf")
 
     judge_host = cf.get('sandbox', 'judgeHost')
     userid = int(cf.get('sandbox', 'userid'))
