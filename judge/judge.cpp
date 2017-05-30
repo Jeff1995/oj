@@ -165,10 +165,6 @@ void run_solution()
     LIM.rlim_max = STD_MB * mem_limit * 2;
     setrlimit(RLIMIT_AS, &LIM);
 
-    while (setgid(userid) != 0) sleep(1);
-    while (setuid(userid) != 0) sleep(1);
-    while (setresuid(userid, userid, userid) != 0) sleep(1);
-
     //open the files
     freopen(standard_input_file, "r", stdin);
     freopen(output_file, "w", stdout);
@@ -176,6 +172,10 @@ void run_solution()
 
     // trace me
     ptrace(PTRACE_TRACEME, 0, NULL, NULL);
+	
+    while (setgid(userid) != 0) sleep(1);
+    while (setuid(userid) != 0) sleep(1);
+    while (setresuid(userid, userid, userid) != 0) sleep(1);
 
     execl(program_file, program_file, (char *) NULL);
 
