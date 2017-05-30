@@ -203,14 +203,14 @@ class Communicator:
         result = submission.result
         if not result['compile_success']:
             resultCode = 'Compile Error'
-        elif not result['run_success']:
-            resultCode = 'Runtime Error'
-        elif not result['compare_success']:
-            resultCode = 'Wrong Answer'
         elif result['time_exceeded']:
             resultCode = 'Time Exceeded Error'
         elif result['mem_exceeded']:
             resultCode = 'Memory Exceeded Error'
+        elif not result['run_success']:
+            resultCode = 'Runtime Error'
+        elif not result['compare_success']:
+            resultCode = 'Wrong Answer'
         else:
             resultCode = 'Accepted'
 
