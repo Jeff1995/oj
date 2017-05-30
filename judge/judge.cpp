@@ -125,15 +125,15 @@ void run_solution()
     execute_cmd("chmod 775 %s", work_dir);
 
     execute_cmd("mkdir -p bin usr lib lib64 etc/alternatives proc tmp dev input");
-    execute_cmd("mount -o bind -o ro /bin bin");
-    execute_cmd("mount -o bind -o ro /usr usr");
-    execute_cmd("mount -o bind -o ro /lib lib");
-    execute_cmd("mount -o bind -o ro %s input", input_dir);
+    execute_cmd("mount -o bind -o ro /bin bin >/dev/null 2>/dev/null");
+    execute_cmd("mount -o bind -o ro /usr usr >/dev/null 2>/dev/null");
+    execute_cmd("mount -o bind -o ro /lib lib >/dev/null 2>/dev/null");
+    execute_cmd("mount -o bind -o ro %s input >/dev/null 2>/dev/null", input_dir);
 #ifndef __i386
-    execute_cmd("mount -o bind -o ro /lib64 lib64");
+    execute_cmd("mount -o bind -o ro /lib64 lib64 >/dev/null 2>/dev/null");
 #endif
-    execute_cmd("mount -o bind -o ro /etc/alternatives etc/alternatives");
-    execute_cmd("mount -o bind -o ro /proc proc");
+    execute_cmd("mount -o bind -o ro /etc/alternatives etc/alternatives >/dev/null 2>/dev/null");
+    execute_cmd("mount -o bind -o ro /proc proc >/dev/null 2>/dev/null");
     chroot(work_dir);
 
     execute_cmd("chmod 775 %s", program_file);
@@ -326,6 +326,10 @@ int main(int argc, char ** argv)
     mem_limit = atoi(argv[8]);
 
     userid = atoi(argv[9]);
+
+    if(mem_limit>1024) mem_limit = 1024;
+    if(mem_limit<0) mem_limit = 0;
+    if(time_limit>3600) time_limit=3600;
 
     pid_t child;
     child = fork();
