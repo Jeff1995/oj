@@ -108,9 +108,9 @@ class Submission:
             return False
         result = self.sandbox.run(self.work_dir, self.bin_relation, self.usrout_relation,
             self.errout_relation, self.input_dir, self.input_relation, self.timeLim, self.memLim)
-        self.result['run_success'], self.result['time_exceeded'],
+        (self.result['run_success'], self.result['time_exceeded'],
         self.result['mem_exceeded'], self.result['time_used'],
-        self.result['mem_used'] = result
+        self.result['mem_used']) = result
         return self.result['run_success']
 
     def compare(self):  # Compare and update self.result
@@ -174,7 +174,7 @@ class Communicator:
                 result = cursor.fetchone()
                 self.logger.info('Successfully fetched submission info from database.')
                 return result
-        except pymysql.DatabaseError:  # TODO: not sure if the error type is correct
+        except pymysql.DatabaseError:
             self.logger.error("Database connection error when trying to fetch info!")
 
     def fetchFile(self, path):  # Fetch file from manager node
@@ -196,37 +196,30 @@ class Communicator:
             self.logger.error("Failed to save file: %s" % path)
             return False
 
-    def report(self, submission):  # TODO: directly write to database
-        # try:
-        #     response = requests.post("http://%s/report.php" % self.managerAddr,
-        #                              data = content)  # TODO: error handling
-        #     return True
-        # except requests.exceptions.RequestException:
-        #     self.logger.error("Failed to send report!")
-        #     return False
+    def report(self, submission):
         result = submission.result
-        if not result.compile_success:
+        if not result['compile_success']:
             resultCode = 'Compile Error'
-        else if not result.run_success:
+        elif not result['run_success']:
             resultCode = 'Runtime Error'
-        else if not result.compare_success:
+        elif not result['compare_success']:
             resultCode = 'Wrong Answer'
-        else if result.time_exceeded:
+        elif result['time_exceeded']:
             resultCode = 'Time Exceeded Error'
-        else if result.mem_exceeded:
+        elif result['mem_exceeded']:
             resultCode = 'Memory Exceeded Error'
         else:
             resultCode = 'Accepted'
 
         try:
             with self.mysqlConn.cursor() as cursor:
-                sql = "UPDATE `Submit` SET  `runTime`=%d, `memUsed`=%d, `result`=%s " + \
-                      "WHERE `submitId`=%d;"
-                cursor.execute(sql, (result.time_used, result.mem_used, resultCode, submission.submissionId))
+                sql = "UPDATE `Submit` SET  `runTime`=%s, `memUsed`=%s, `result`=%s " + \
+                      "WHERE `submitId`=%s;"
+                cursor.execute(sql, (result['time_used'], result['mem_used'], resultCode, submission.submissionId))
             self.mysqlConn.commit()
             self.logger.info('Successfully written result to database.')
             return True
-        except pymysql.DatabaseError:  # TODO: not sure if the error type is correct
+        except pymysql.DatabaseError:
             self.logger.error("Database connection error when trying to report!")
             return False
 
@@ -266,7 +259,8 @@ class Comparer:
         self.args = args
 
     def compare(self, stdout, usrout):  # Return bool
-        retcode = call(['diff', args, stdout, usrout])
+        cmdList = ['diff', self.args, stdout, usrout]
+        retcode = call(cmdList)
         if retcode == 0:
             self.logger.info('Answer is correct.')
         else:

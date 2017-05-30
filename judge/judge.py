@@ -27,7 +27,7 @@ if __name__ == '__main__':
     # Setup submission
     comm = Communicator(config.managerAddr, config.mysqlPort, config.mysqlUsr, config.mysqlPasswd, config.mysqlDb)
     compiler = Compiler(config.compiler, config.compileArgs)
-    sandbox = Sandbox()  # TODO
+    sandbox = Sandbox()
     comparer = Comparer(config.compareArgs)
     submission = Submission(submissionId, comm, compiler, sandbox, comparer)
 

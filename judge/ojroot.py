@@ -21,12 +21,9 @@ def main():
     while True:
         connection, address = server.accept()
         infor = json.loads(connection.recv(1024).decode())
-        print(infor)
         work_dir, bin, usrout, errout, input_dir, stdin, time_limit, mem_limit = infor
         cmd = "%s %s %s %s %s %s %s %s %s %s"%(judge_host, work_dir, bin, usrout, errout, input_dir, stdin, time_limit, mem_limit, userid)
-        print cmd
 	tmp = os.popen(cmd).read()
-	print tmp
         result, time_used, mem_used = [int(s) for s in tmp.split()]
         success = result == 0
         time_exceeded = result == 2
