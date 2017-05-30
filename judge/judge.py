@@ -6,12 +6,14 @@ This is the backend module called by manager node
 """
 
 
+import os
 import sys
 import logging
 from utils import logFile, constructLogger, Config, Submission, Communicator, Compiler, Sandbox, Comparer
 
-
+ 
 if __name__ == '__main__':
+    os.chdir('/opt/OJ')
 
     # Read configuration file
     configFile = 'conf/oj.conf'
