@@ -16,6 +16,7 @@ def main():
         connection, address = server.accept()
         cur = connection.recv(1024).decode()
         cmd = "/opt/slurm/bin/srun /opt/OJ/judge/judge.py " + cur
+        os.system(cmd)
         connection.close()
 
 if __name__ == '__main__':
