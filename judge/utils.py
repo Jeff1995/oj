@@ -122,7 +122,7 @@ class Submission:
     def report(self):  # Construct content with self.result and send back
         if not self.constructed:
             return False
-        return self.comm.report(json.dumps(self.result))
+        return self.comm.report(self)
 
 
 class Sandbox:
@@ -139,6 +139,8 @@ class Sandbox:
         client.connect("/tmp/judge_root.sock")
         client.send(json.dumps([work_dir, bin, usrout, errout, input_dir, stdin, time_limit, mem_limit]).encode())
         success, time_exceeded, mem_exceeded, time_used, mem_used = json.loads(client.recv(1024).decode())
+        if success:
+            self.logger.info('Sandbox run successfully finished.')
         return success, time_exceeded, mem_exceeded, time_used, mem_used
 
     def close(self):
@@ -167,22 +169,25 @@ class Communicator:
             with self.mysqlConn.cursor() as cursor:
                 sql = "SELECT `Problem`.`problemId` AS `problemId`, `timeLimit`, `memLimit` " + \
                       "FROM `Submit`, `Problem` WHERE " + \
-                      "`submitId`=%s AND `Submit`.`problemId`=`Problem`.`problemId`"
+                      "`submitId`=%s AND `Submit`.`problemId`=`Problem`.`problemId`;"
                 cursor.execute(sql, (str(submission.submissionId, )))
                 result = cursor.fetchone()
+                self.logger.info('Successfully fetched submission info from database.')
                 return result
         except pymysql.DatabaseError:  # TODO: not sure if the error type is correct
-            self.logger.error("Database connection error!")
+            self.logger.error("Database connection error when trying to fetch info!")
 
     def fetchFile(self, path):  # Fetch file from manager node
         try:
             url = "http://%s/OJ/%s" % (self.managerAddr, path)
             response = requests.get(url)
+            self.logger.info('Successfully fetched file from manager.')
             path_dir = '/'.join(path.split('/')[:-1])
             if not os.path.exists(path_dir):
                 os.makedirs(path_dir)
             with open(path, 'w') as fetchedFile:
                 fetchedFile.write(response.text)
+                self.logger.info('Successfully saved to file.')
             return True
         except requests.exceptions.RequestException:
             self.logger.error("Failed to fetch file: %s" % path)
@@ -191,13 +196,38 @@ class Communicator:
             self.logger.error("Failed to save file: %s" % path)
             return False
 
-    def report(self, content):
+    def report(self, submission):  # TODO: directly write to database
+        # try:
+        #     response = requests.post("http://%s/report.php" % self.managerAddr,
+        #                              data = content)  # TODO: error handling
+        #     return True
+        # except requests.exceptions.RequestException:
+        #     self.logger.error("Failed to send report!")
+        #     return False
+        result = submission.result
+        if not result.compile_success:
+            resultCode = 'Compile Error'
+        else if not result.run_success:
+            resultCode = 'Runtime Error'
+        else if not result.compare_success:
+            resultCode = 'Wrong Answer'
+        else if result.time_exceeded:
+            resultCode = 'Time Exceeded Error'
+        else if result.mem_exceeded:
+            resultCode = 'Memory Exceeded Error'
+        else:
+            resultCode = 'Accepted'
+
         try:
-            response = requests.post("http://%s/report.php" % self.managerAddr,
-                                     data = content)  # TODO: error handling
+            with self.mysqlConn.cursor() as cursor:
+                sql = "UPDATE `Submit` SET  `runTime`=%d, `memUsed`=%d, `result`=%s " + \
+                      "WHERE `submitId`=%d;"
+                cursor.execute(sql, (result.time_used, result.mem_used, resultCode, submission.submissionId))
+            self.mysqlConn.commit()
+            self.logger.info('Successfully written result to database.')
             return True
-        except requests.exceptions.RequestException:
-            self.logger.error("Failed to send report!")
+        except pymysql.DatabaseError:  # TODO: not sure if the error type is correct
+            self.logger.error("Database connection error when trying to report!")
             return False
 
     def close(self):
@@ -216,8 +246,12 @@ class Compiler:
         self.args = args
 
     def compile(self, src, bin):  # Return bool
-	cmdList = [self.compiler, self.args, '-o', bin, src]
+        cmdList = [self.compiler, self.args, '-o', bin, src]
         retcode = call([self.compiler, self.args, '-o', bin, src])
+        if retcode == 0:
+            self.logger.info('Compiled successfully.')
+        else:
+            self.logger.error('Compilation failed!')
         return retcode == 0
 
 
@@ -233,6 +267,10 @@ class Comparer:
 
     def compare(self, stdout, usrout):  # Return bool
         retcode = call(['diff', args, stdout, usrout])
+        if retcode == 0:
+            self.logger.info('Answer is correct.')
+        else:
+            self.logger.info('Answer is incorrect.')
         return retcode == 0
 
 
