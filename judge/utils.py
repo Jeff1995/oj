@@ -143,6 +143,7 @@ class Sandbox:
         success, time_exceeded, mem_exceeded, time_used, mem_used = json.loads(client.recv(1024).decode())
         if success:
             self.logger.info('Sandbox run successfully finished.')
+        self.logger.info(str((success, time_exceeded, mem_exceeded, time_used, mem_used)))
         return success, time_exceeded, mem_exceeded, time_used, mem_used
 
     def close(self):
@@ -242,24 +243,11 @@ class Compiler:
 
     def compile(self, src, bin):  # Return bool
         cmdList = [self.compiler, self.args, '-o', bin, src]
-	print cmdList
         retcode = call(cmdList)
-	p = Popen(cmdList, stdout = subprocess.PIPE,
-			stderr = subprocess.PIPE)
-	out, err = p.communicate()
-	self.logger.info('\n' + out + '\n')
-	self.logger.info('\n' + err + '\n')
-	p = Popen(['id'], stdout = subprocess.PIPE,
-			stderr = subprocess.PIPE)
-	out, err = p.communicate()
-	self.logger.info('\n' + out + '\n')
-	self.logger.info('\n' + err + '\n')
         if retcode == 0:
             self.logger.info('Compiled successfully.')
         else:
-            self.logger.error(' '.join(cmdList))
             self.logger.error('Compilation failed!')
-            self.logger.error('Compiler returned %d.' % retcode)
         return retcode == 0
 
 
