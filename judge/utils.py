@@ -188,8 +188,8 @@ class Communicator:
             path_dir = '/'.join(path.split('/')[:-1])
             if not os.path.exists(path_dir):
                 os.makedirs(path_dir)
-            with open(path, 'w') as fetchedFile:
-                fetchedFile.write(response.text)
+            with open(path, 'wb') as fetchedFile:
+                fetchedFile.write(response.content)
                 self.logger.info('Successfully saved to file.')
             return True
         except requests.exceptions.RequestException:
