@@ -143,7 +143,7 @@ class Sandbox:
         success, time_exceeded, mem_exceeded, time_used, mem_used = json.loads(client.recv(1024).decode())
         if success:
             self.logger.info('Sandbox run successfully finished.')
-        self.logger.info(str((success, time_exceeded, mem_exceeded, time_used, mem_used)))
+        # self.logger.info(str((success, time_exceeded, mem_exceeded, time_used, mem_used)))
         return success, time_exceeded, mem_exceeded, time_used, mem_used
 
     def close(self):
@@ -262,7 +262,7 @@ class Comparer:
         self.args = args
 
     def compare(self, stdout, usrout):  # Return bool
-        cmdList = ['diff', self.args, stdout, usrout]
+        cmdList = ['diff', stdout, usrout]
         retcode = call(cmdList)
         if retcode == 0:
             self.logger.info('Answer is correct.')
