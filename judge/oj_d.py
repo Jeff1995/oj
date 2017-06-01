@@ -17,6 +17,7 @@ def main():
         cur = connection.recv(1024).decode()
         print cur
         cmd = "/opt/slurm/bin/srun /opt/OJ/judge/judge.py " + cur
+	print cmd
         os.system(cmd)
         connection.close()
 
