@@ -52,7 +52,6 @@ class Submission:
         if info is None:
             msg = "Failed to fetch submission info!"
             self.logger.error(msg)
-            self.comm.report(msg)
             return
 
         # Use info to fill in the following attributes
@@ -257,9 +256,8 @@ class Comparer:
     This class is responsible for comparing user program output with stdout
     """
 
-    def __init__(self, args):
+    def __init__(self):
         self.logger = constructLogger('Comparer', logFile)
-        self.args = args
 
     def compare(self, stdout, usrout):  # Return bool
         cmdList = ['diff', stdout, usrout]
@@ -293,4 +291,3 @@ class Config:
         self.compiler = parser.get('compile', 'compiler')
         self.compileArgs = parser.get('compile', 'args')
 
-        self.compareArgs = parser.get('compare', 'args')

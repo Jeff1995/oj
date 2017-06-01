@@ -11,7 +11,7 @@ import sys
 import logging
 from utils import logFile, constructLogger, Config, Submission, Communicator, Compiler, Sandbox, Comparer
 
- 
+
 if __name__ == '__main__':
     os.chdir('/opt/OJ')
 
@@ -30,7 +30,7 @@ if __name__ == '__main__':
     comm = Communicator(config.managerAddr, config.mysqlPort, config.mysqlUsr, config.mysqlPasswd, config.mysqlDb)
     compiler = Compiler(config.compiler, config.compileArgs)
     sandbox = Sandbox()
-    comparer = Comparer(config.compareArgs)
+    comparer = Comparer()
     submission = Submission(submissionId, comm, compiler, sandbox, comparer)
 
     # Test submission

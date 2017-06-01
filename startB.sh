@@ -1,11 +1,13 @@
 #!/bin/bash
 if [ ! -d log ]; then
-    mkdir log
+    sudo -u slurm mkdir log
 fi
 if [ ! -d dat ]; then
-    mkdir dat
-    mkdir dat/submissions
-    mkdir dat/problems
+    sudo -u slurm mkdir dat
+    sudo -u slurm mkdir dat/submissions
+    sudo -u slurm mkdir dat/problems
 fi
 sudo -u slurm g++ -o judge/judge judge/judge.cpp
 sudo judge/ojroot.py &
+sudo -u slurm /opt/slurm/sbin/slurmd -c
+
